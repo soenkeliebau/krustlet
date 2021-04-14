@@ -56,6 +56,8 @@ use wasi_runtime::Runtime;
 mod states;
 use kubelet::node;
 use states::pod::PodState;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 
 const TARGET_WASM32_WASI: &str = "wasm32-wasi";
 const LOG_DIR_NAME: &str = "wasi-logs";
@@ -188,6 +190,12 @@ impl Provider for WasiProvider {
     // Evict all pods upon shutdown
     async fn shutdown(&self, node_name: &str) -> anyhow::Result<()> {
         node::drain(&self.shared.client, &node_name).await?;
+        Ok(())
+    }
+
+    async fn shutdown_task(&self, signal: Arc<AtomicBool>) -> anyhow::Result<()> {
+        tokio::time::sleep(Duration::from_secs(20)).await;
+        signal.store(true, Ordering::Relaxed);
         Ok(())
     }
 }

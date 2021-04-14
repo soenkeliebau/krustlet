@@ -66,6 +66,11 @@ impl<P: Provider> Kubelet<P> {
         // Flag to indicate graceful shutdown has started.
         let signal = Arc::new(AtomicBool::new(false));
         let signal_task = start_signal_task(Arc::clone(&signal)).fuse().boxed();
+        let provider_signal_task = self
+            .provider
+            .shutdown_task(Arc::clone(&signal))
+            .fuse()
+            .boxed();
 
         let plugin_registrar = start_plugin_registry(self.provider.plugin_registry())
             .fuse()
@@ -86,6 +91,9 @@ impl<P: Provider> Kubelet<P> {
             tokio::select! {
                 res = signal_task => if let Err(e) = res {
                     error!("Signal task completed with error {:?}", &e);
+                },
+                res = provider_signal_task => if let Err(e) = res {
+                    error!("Provider signal task completed with error {:?}", &e);
                 },
                 res = webserver => error!("Webserver task completed with result {:?}", &res),
                 res = node_updater => if let Err(e) = res {

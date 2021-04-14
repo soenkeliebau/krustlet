@@ -15,6 +15,7 @@ use crate::plugin_watcher::PluginRegistry;
 use crate::pod::Pod;
 use crate::pod::Status as PodStatus;
 use krator::{ObjectState, State};
+use std::sync::atomic::AtomicBool;
 
 /// A back-end for a Kubelet.
 ///
@@ -127,6 +128,16 @@ pub trait Provider: Sized + Send + Sync + 'static {
     async fn shutdown(&self, node_name: &str) -> anyhow::Result<()> {
         info!("Shutdown triggered for node {}, since no custom shutdown behavior was implemented Kubelet will simply shut down now.", node_name);
         Ok(())
+    }
+
+    /// Allows providers to implement custom shutdown logic besides just listening for Ctrl-C
+    /// To signal a shutdown this function should set `signal` to true.
+    /// Since the Kubelet needs to await this future, providers have to ensure that this function
+    /// does not return before a shutdown is initialized.
+    async fn shutdown_task(&self, _signal: Arc<AtomicBool>) -> anyhow::Result<()> {
+        // Wait forever, to avoid this ever returning and ending the select in kubelet
+        // which would cause an unintended shutdown
+        Ok(futures::future::pending().await)
     }
 
     /// Given a Pod, get back the logs for the associated workload.
